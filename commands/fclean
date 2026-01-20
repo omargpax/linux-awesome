@@ -45,16 +45,44 @@ clean_logs() {
     echo "... ... ... .... ... ... .. ."
 }
 
+check_bluetooth() {
+    echo -e "${Y}Diagnosticando Bluetooth...${NC}"
+
+    # 1. Desbloquear por software (rfkill)
+    printf "Revisando bloqueos de hardware..."
+    sudo rfkill unblock bluetooth &>/dev/null
+    echo -e "${G} OK${NC}"
+
+    # 2. Reiniciar servicio para refrescar conexión
+    printf "Reiniciando servicio Bluetooth..."
+    sudo systemctl restart bluetooth &>/dev/null & spinner $!
+    echo -e "${G} OK${NC}"
+
+    # 3. Mostrar estado y dispositivos
+    echo -e "\n${B}--- Estado actual ---${NC}"
+    if bluetoothctl show | grep -q "Powered: yes"; then
+        echo -e "Bluetooth: ${G}Encendido${NC}"
+        echo -e "Dispositivos emparejados:"
+        bluetoothctl devices | cut -d ' ' -f 2-
+    else
+        echo -e "Bluetooth: ${R}Apagado o no encontrado${NC}"
+    fi
+    echo -e "\n${G} ✓ Diagnóstico de Bluetooth terminado${NC}"
+}
+
 show_help() {
     echo -e "${B}Uso: fclean [opciones]${NC}"
     echo -e ""
     echo -e "Opciones disponibles:"
     echo -e "  ${G}-p${NC}   Limpiar paquetes (update, autoremove, autoclean)"
     echo -e "  ${G}-l${NC}   Limpiar logs (journalctl vacuum)"
+    echo -e "  ${G}-b${NC}   Testear y resetear Bluetooth"
+    echo -e "  ${G}-a${NC}   Limpieza completa (paquetes + logs)"
     echo -e "  ${G}-h${NC}   Mostrar esta ayuda"
     echo -e ""
-    echo -e "Ejemplo: ${Y}fclean -p${NC}"
+    echo -e "Ejemplo: ${Y}fclean -b${NC}"
 }
+
 
 # Lógica de flags (getopts)
 if [ $# -eq 0 ]; then
@@ -62,10 +90,12 @@ if [ $# -eq 0 ]; then
     exit 0
 fi
 
-while getopts "plh" opt; do
+while getopts "plabh" opt; do
     case ${opt} in
         p ) clean_packages ;;
         l ) clean_logs ;;
+        b ) check_bluetooth ;;
+        a ) clean_packages; clean_logs ;;
         h ) show_help ;;
         \? ) show_help ;;
     esac
